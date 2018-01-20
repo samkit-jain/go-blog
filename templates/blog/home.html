@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Go-Blog</title>
+    </head>
+    <body>
+        <h1>Welcome to Go-Blog!</h1>
+        {{ if .IsEmpty }}
+            <h2>Nothing here!</h2>
+        {{ else }}
+            <div>
+                {{ range .List }}
+                    {{.}}
+                {{ end }}
+            </div>
+        {{ end }}
+</body>
+</html>
