@@ -24,8 +24,9 @@ type DBConnection struct {
 }
 
 type Author struct {
-	Username string
-	AuthorId string
+	Username  string
+	AuthorId  string
+	CreatedAt time.Time
 }
 
 type Post struct {
@@ -40,6 +41,11 @@ type Post struct {
 type Posts struct {
 	IsEmpty bool
 	List    []Post
+}
+
+type AuthorPosts struct {
+	AuthorInfo Author
+	List       []Post
 }
 
 // get information of all posts
@@ -81,7 +87,6 @@ func (dbc *DBConnection) getAllPosts() ([]Post, error) {
 
 // get information for a specific post
 func (dbc *DBConnection) getPost(postId string) (Post, error) {
-	result := Post{}
 	row := dbc.db.QueryRow("SELECT authors.username, authors.author_id, posts.title, posts.body, posts.created_at, posts.updated_at FROM authors, posts WHERE posts.post_id=$1;", postId)
 
 	var (
@@ -99,11 +104,68 @@ func (dbc *DBConnection) getPost(postId string) (Post, error) {
 		return Post{}, err
 	}
 
-	result = Post{Id: postId, Title: postTitle, Body: postBody, CreatedAt: postCreatedAt, UpdatedAt: postUpdatedAt, AuthorInfo: Author{Username: authorName, AuthorId: authorId}}
+	result := Post{Id: postId, Title: postTitle, Body: postBody, CreatedAt: postCreatedAt, UpdatedAt: postUpdatedAt, AuthorInfo: Author{Username: authorName, AuthorId: authorId}}
 
 	return result, nil
 }
 
+// get information for a specific author
+func (dbc *DBConnection) getAuthor(authorId string) (AuthorPosts, error) {
+	// Getting Author's info
+	row := dbc.db.QueryRow("SELECT username, created_at FROM authors WHERE author_id=$1;", authorId)
+
+	var (
+		authorName      string
+		authorCreatedAt time.Time
+	)
+
+	err := row.Scan(&authorName, &authorCreatedAt)
+
+	if err != nil {
+		return AuthorPosts{}, err
+	}
+
+	posts := make([]Post, 0)
+	result := AuthorPosts{AuthorInfo: Author{Username: authorName, AuthorId: authorId, CreatedAt: authorCreatedAt}, List: posts}
+
+	// Getting Author's posts
+	rows, err := dbc.db.Query("SELECT post_id, title, SUBSTRING(body FOR 100) AS body FROM posts WHERE author_id=$1 ORDER BY created_at DESC;", authorId)
+
+	if err != nil {
+		return result, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			postId string
+			title  string
+			body   string
+		)
+
+		err = rows.Scan(&postId, &title, &body)
+
+		if err != nil {
+			return result, err
+		}
+
+		result.List = append(result.List, Post{Id: postId, Title: title, Body: body})
+	}
+
+	// get any error encountered during iteration
+	err = rows.Err()
+
+	if err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
+// ........................................................................
+// .. Use https://stackoverflow.com/a/35967196/7760998 to remove isEmpty ..
+// ........................................................................
 func (dbc *DBConnection) homePageHandler(w http.ResponseWriter, r *http.Request) {
 	allPosts, err := dbc.getAllPosts()
 
@@ -128,6 +190,18 @@ func (dbc *DBConnection) postHandler(w http.ResponseWriter, r *http.Request) {
 	renderTemplateSingle(w, "post", &content)
 }
 
+func (dbc *DBConnection) authorHandler(w http.ResponseWriter, r *http.Request) {
+	authorId := r.URL.Path[len("/author/"):]
+	content, err := dbc.getAuthor(authorId)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	renderTemplateAuthor(w, "author", &content)
+}
+
 var templates = template.Must(template.ParseGlob("templates/blog/*"))
 
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Posts) {
@@ -140,6 +214,14 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Posts) {
 
 func renderTemplateSingle(w http.ResponseWriter, tmpl string, p *Post) {
 	err := templates.ExecuteTemplate(w, tmpl+".html", p)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func renderTemplateAuthor(w http.ResponseWriter, tmpl string, ap *AuthorPosts) {
+	err := templates.ExecuteTemplate(w, tmpl+".html", ap)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -188,6 +270,7 @@ func main() {
 
 	http.HandleFunc("/", dbconn.homePageHandler)
 	http.HandleFunc("/post/", dbconn.postHandler)
+	http.HandleFunc("/author/", dbconn.authorHandler)
 	http.ListenAndServe(":8080", nil)
 
 	/*

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>{{ .AuthorInfo.Username }}</title>
+    </head>
+    <body>
+        <h1>{{ .AuthorInfo.Username }}</h1>
+        <p>Member since: {{ .AuthorInfo.CreatedAt.Format "Jan 2, 2006 at 3:04pm (MST)" }}</p>
+        <br/>
+        <h3><u>Recent Posts</u></h3>
+        {{ if not .List }}
+            <p>It's quiet out here!</p>
+        {{ else }}
+            {{ range .List }}
+                <div>
+                    <h6><a href="/post/{{ .Id }}">{{ .Title }}</a></h6>
+                    <p>
+                    {{ .Body }}
+                    {{ if eq (len .Body) 100 }}
+                        ...
+                    {{ end }}
+                    </p>
+                </div>
+                <br/>
+            {{ end }}
+        {{ end }}
+    </body>
+</html>
