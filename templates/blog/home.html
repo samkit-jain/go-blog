@@ -12,8 +12,13 @@
             <div>
                 {{ range .List }}
                     <div>
-                        <h3><a href="/post/{{.Id}}">{{.Title}}</a></h3>
-                        <p>{{.Body}}</p>
+                        <h3><a href="/post/{{ .Id }}">{{ .Title }}</a></h3>
+                        <p>
+                            {{ .Body }}
+                            {{ if eq (len .Body) 100 }}
+                                ...
+                            {{ end }}
+                        </p>
                     </div>
                     <br/>
                 {{ end }}

@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>{{ .Title }}</title>
+    </head>
+    <body>
+        <h1>{{ .Title }}</h1>
+        <p>By: <a href="/author/{{ .AuthorInfo.AuthorId }}">{{ .AuthorInfo.Username }}</a> Published: {{ .CreatedAt.Format "Jan 2, 2006 at 3:04pm (MST)" }} Modified: {{ .UpdatedAt.Format "Jan 2, 2006 at 3:04pm (MST)" }}</p>
+        <br/>
+        <p>{{ .Body }}</p>
+    </body>
+</html>

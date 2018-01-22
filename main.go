@@ -29,12 +29,12 @@ type Author struct {
 }
 
 type Post struct {
-	Id        string
-	Title     string
-	Body      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	AuthorInfo    Author
+	Id         string
+	Title      string
+	Body       string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	AuthorInfo Author
 }
 
 type Posts struct {
@@ -42,9 +42,10 @@ type Posts struct {
 	List    []Post
 }
 
+// get information of all posts
 func (dbc *DBConnection) getAllPosts() ([]Post, error) {
 	result := make([]Post, 0)
-	rows, err := dbc.db.Query("SELECT post_id, title, SUBSTRING(body FOR 100) AS body FROM posts ORDER BY updated_at DESC")
+	rows, err := dbc.db.Query("SELECT post_id, title, SUBSTRING(body FOR 100) AS body FROM posts ORDER BY updated_at DESC;")
 
 	if err != nil {
 		return nil, err
@@ -54,9 +55,9 @@ func (dbc *DBConnection) getAllPosts() ([]Post, error) {
 
 	for rows.Next() {
 		var (
-			postId    string
-			title     string
-			body      string
+			postId string
+			title  string
+			body   string
 		)
 
 		err = rows.Scan(&postId, &title, &body)
@@ -72,8 +73,33 @@ func (dbc *DBConnection) getAllPosts() ([]Post, error) {
 	err = rows.Err()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+
+	return result, nil
+}
+
+// get information for a specific post
+func (dbc *DBConnection) getPost(postId string) (Post, error) {
+	result := Post{}
+	row := dbc.db.QueryRow("SELECT authors.username, authors.author_id, posts.title, posts.body, posts.created_at, posts.updated_at FROM authors, posts WHERE posts.post_id=$1;", postId)
+
+	var (
+		authorName    string
+		authorId      string
+		postTitle     string
+		postBody      string
+		postCreatedAt time.Time
+		postUpdatedAt time.Time
+	)
+
+	err := row.Scan(&authorName, &authorId, &postTitle, &postBody, &postCreatedAt, &postUpdatedAt)
+
+	if err != nil {
+		return Post{}, err
+	}
+
+	result = Post{Id: postId, Title: postTitle, Body: postBody, CreatedAt: postCreatedAt, UpdatedAt: postUpdatedAt, AuthorInfo: Author{Username: authorName, AuthorId: authorId}}
 
 	return result, nil
 }
@@ -90,9 +116,29 @@ func (dbc *DBConnection) homePageHandler(w http.ResponseWriter, r *http.Request)
 	renderTemplate(w, "home", content)
 }
 
+func (dbc *DBConnection) postHandler(w http.ResponseWriter, r *http.Request) {
+	postId := r.URL.Path[len("/post/"):]
+	content, err := dbc.getPost(postId)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	renderTemplateSingle(w, "post", &content)
+}
+
 var templates = template.Must(template.ParseGlob("templates/blog/*"))
 
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Posts) {
+	err := templates.ExecuteTemplate(w, tmpl+".html", p)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func renderTemplateSingle(w http.ResponseWriter, tmpl string, p *Post) {
 	err := templates.ExecuteTemplate(w, tmpl+".html", p)
 
 	if err != nil {
@@ -141,6 +187,7 @@ func main() {
 	dbconn := &DBConnection{db: db}
 
 	http.HandleFunc("/", dbconn.homePageHandler)
+	http.HandleFunc("/post/", dbconn.postHandler)
 	http.ListenAndServe(":8080", nil)
 
 	/*
