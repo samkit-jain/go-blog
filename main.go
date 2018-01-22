@@ -23,13 +23,18 @@ type DBConnection struct {
 	db *sql.DB
 }
 
+type Author struct {
+	Username string
+	AuthorId string
+}
+
 type Post struct {
 	Id        string
 	Title     string
 	Body      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	Author    string
+	AuthorInfo    Author
 }
 
 type Posts struct {
@@ -39,7 +44,7 @@ type Posts struct {
 
 func (dbc *DBConnection) getAllPosts() ([]Post, error) {
 	result := make([]Post, 0)
-	rows, err := dbc.db.Query("SELECT post_id, title, body, created_at, updated_at, author_id FROM posts")
+	rows, err := dbc.db.Query("SELECT post_id, title, SUBSTRING(body FOR 100) AS body FROM posts ORDER BY updated_at DESC")
 
 	if err != nil {
 		return nil, err
@@ -52,18 +57,15 @@ func (dbc *DBConnection) getAllPosts() ([]Post, error) {
 			postId    string
 			title     string
 			body      string
-			authorId  string
-			createdAt time.Time
-			updatedAt time.Time
 		)
 
-		err = rows.Scan(&postId, &title, &body, &createdAt, &updatedAt, &authorId)
+		err = rows.Scan(&postId, &title, &body)
 
 		if err != nil {
 			return nil, err
 		}
 
-		result = append(result, Post{Id: postId, Title: title, Body: body, CreatedAt: createdAt, UpdatedAt: updatedAt, Author: authorId})
+		result = append(result, Post{Id: postId, Title: title, Body: body})
 	}
 
 	// get any error encountered during iteration

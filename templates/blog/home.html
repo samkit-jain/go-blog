@@ -11,9 +11,13 @@
         {{ else }}
             <div>
                 {{ range .List }}
-                    {{.}}
+                    <div>
+                        <h3><a href="/post/{{.Id}}">{{.Title}}</a></h3>
+                        <p>{{.Body}}</p>
+                    </div>
+                    <br/>
                 {{ end }}
             </div>
         {{ end }}
-</body>
+    </body>
 </html>
