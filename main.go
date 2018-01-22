@@ -10,6 +10,9 @@ import (
 	//"regexp"
 	"html/template"
 	"time"
+	"golang.org/x/crypto/bcrypt"
+	"math/rand"
+	"strconv"
 )
 
 const (
@@ -46,6 +49,50 @@ type Posts struct {
 type AuthorPosts struct {
 	AuthorInfo Author
 	List       []Post
+}
+
+func rangeIn(low, hi int) int {
+	return low + rand.Intn(hi-low)
+}
+
+func HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(hash), nil
+}
+
+//func CheckPasswordHash(password, hash string) bool {
+//	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+//	return err == nil
+//}
+
+// create author if not exists
+func (dbc *DBConnection) createAuthor(un, ps string) (string, error) {
+	hash, err := HashPassword(ps)
+
+	if err != nil {
+		return "", err
+	}
+
+	// ADD A FOR LOOP THAT RUNS TILL AUTHOR_ID IS UNIQUE
+	sqlStatement := `
+		INSERT INTO authors (author_id, username, password)
+		VALUES ($1, $2, $3)
+		RETURNING author_id`
+
+	var id string
+
+	err = dbc.db.QueryRow(sqlStatement, "100000" + strconv.Itoa(rangeIn(100000000, 999999999)), un, hash).Scan(&id)
+
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
 }
 
 // get information of all posts
@@ -175,7 +222,7 @@ func (dbc *DBConnection) homePageHandler(w http.ResponseWriter, r *http.Request)
 		content.IsEmpty = true
 	}
 
-	renderTemplate(w, "home", content)
+	renderTemplatePosts(w, "home", content)
 }
 
 func (dbc *DBConnection) postHandler(w http.ResponseWriter, r *http.Request) {
@@ -202,9 +249,35 @@ func (dbc *DBConnection) authorHandler(w http.ResponseWriter, r *http.Request) {
 	renderTemplateAuthor(w, "author", &content)
 }
 
+func (dbc *DBConnection) authorRegisterHandler(w http.ResponseWriter, r *http.Request) {
+	renderTemplate(w, "signup")
+}
+
+func (dbc *DBConnection) authorRegisterCompleteHandler(w http.ResponseWriter, r *http.Request) {
+	un := r.FormValue("username")
+	ps := r.FormValue("password")
+
+	authorId, err := dbc.createAuthor(un, ps)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/author/" + authorId, http.StatusFound)
+}
+
 var templates = template.Must(template.ParseGlob("templates/blog/*"))
 
-func renderTemplate(w http.ResponseWriter, tmpl string, p *Posts) {
+func renderTemplate(w http.ResponseWriter, tmpl string) {
+	err := templates.ExecuteTemplate(w, tmpl+".html", nil)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func renderTemplatePosts(w http.ResponseWriter, tmpl string, p *Posts) {
 	err := templates.ExecuteTemplate(w, tmpl+".html", p)
 
 	if err != nil {
@@ -271,19 +344,8 @@ func main() {
 	http.HandleFunc("/", dbconn.homePageHandler)
 	http.HandleFunc("/post/", dbconn.postHandler)
 	http.HandleFunc("/author/", dbconn.authorHandler)
+	http.HandleFunc("/signup/", dbconn.authorRegisterHandler)
+	http.HandleFunc("/register/author/", dbconn.authorRegisterCompleteHandler)
+	//http.HandleFunc("/signin/", dbconn.authorLoginHandler)
 	http.ListenAndServe(":8080", nil)
-
-	/*
-			sqlStatement := `
-		INSERT INTO users (age, email, first_name, last_name)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id`
-
-			id := 0
-			err = db.QueryRow(sqlStatement, 30, "jon@calhoun.io", "Jonathan", "Calhoun").Scan(&id)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Println("New record ID is:", id)
-	*/
 }
