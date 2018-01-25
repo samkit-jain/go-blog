@@ -46,7 +46,10 @@ type AuthorPosts struct {
 }
 
 func rangeIn(low, hi int) int {
-	return low + rand.Intn(hi-low)
+	seed := rand.NewSource(time.Now().UnixNano())
+	tempRand := rand.New(seed)
+
+	return low + tempRand.Intn(hi-low)
 }
 
 func HashPassword(password string) (string, error) {
@@ -189,21 +192,20 @@ func createAuthor(un, ps string) (string, error) {
 		return "", err
 	}
 
-	// ADD A FOR LOOP THAT RUNS TILL AUTHOR_ID IS UNIQUE
-	sqlStatement := `
+	for {
+		sqlStatement := `
 		INSERT INTO authors (author_id, username, password)
 		VALUES ($1, $2, $3)
 		RETURNING author_id`
 
-	var id string
+		var id string
 
-	err = db.QueryRow(sqlStatement, "100000"+strconv.Itoa(rangeIn(100000000, 999999999)), un, hash).Scan(&id)
+		err = db.QueryRow(sqlStatement, "100000"+strconv.Itoa(rangeIn(100000000, 999999999)), un, hash).Scan(&id)
 
-	if err != nil {
-		return "", err
+		if err == nil {
+			return id, nil
+		}
 	}
-
-	return id, nil
 }
 
 type App struct {
@@ -259,7 +261,6 @@ type PostHandler struct {
 }
 
 func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	fmt.Println(h)
 	var postId string
 	postId, req.URL.Path = ShiftPath(req.URL.Path)
 
@@ -306,10 +307,6 @@ func (h *SignupHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	switch head {
 	case "":
-		fmt.Println("\n\n\nin\n\n\n")
-		fmt.Println(req.URL.Path)
-		fmt.Println(h)
-
 		h.SignupStartHandler.ServeHTTP(res, req)
 	case "finish":
 		h.SignupEndHandler.ServeHTTP(res, req)
@@ -324,8 +321,6 @@ type SignupStartHandler struct {
 }
 
 func (h *SignupStartHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	fmt.Println("\n\n\nagain\n\n\n")
-
 	renderTemplate(res, "signup", nil)
 }
 
@@ -362,9 +357,6 @@ type RootHandler struct {
 }
 
 func (h *RootHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	fmt.Println(h)
-
-
 	var head string
 	head, req.URL.Path = ShiftPath(req.URL.Path)
 
