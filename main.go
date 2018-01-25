@@ -10,10 +10,14 @@ import (
 	//"regexp"
 	"html/template"
 	"time"
-	"golang.org/x/crypto/bcrypt"
-	"math/rand"
-	"strconv"
+	//"golang.org/x/crypto/bcrypt"
+	//"math/rand"
+	//"strconv"
+	"path"
+	"strings"
 )
+
+var db *sql.DB
 
 const (
 	host   = "localhost"
@@ -22,6 +26,158 @@ const (
 	dbname = "goblog"
 )
 
+type Author struct {
+	Username  string
+	AuthorId  string
+	CreatedAt time.Time
+}
+
+type Post struct {
+	Id         string
+	Title      string
+	Body       string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	AuthorInfo Author
+}
+
+type Posts struct {
+	IsEmpty bool
+	List    []Post
+}
+
+func getAllPosts() ([]Post, error) {
+	result := make([]Post, 0)
+	rows, err := db.Query("SELECT post_id, title, SUBSTRING(body FOR 100) AS body FROM posts ORDER BY updated_at DESC;")
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			postId string
+			title  string
+			body   string
+		)
+
+		err = rows.Scan(&postId, &title, &body)
+
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, Post{Id: postId, Title: title, Body: body})
+	}
+
+	// get any error encountered during iteration
+	err = rows.Err()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func ShiftPath(p string) (head, tail string) {
+	p = path.Clean("/" + p)
+	i := strings.Index(p[1:], "/") + 1
+
+	if i <= 0 {
+		return p[1:], "/"
+	}
+
+	return p[1:i], p[i:]
+}
+
+type App struct {
+	PostHandler *PostHandler
+	RootHandler *RootHandler
+}
+
+func (h *App) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var head string
+
+	head, req.URL.Path = ShiftPath(req.URL.Path)
+
+	if head == "" {
+		h.RootHandler.ServeHTTP(res, req)
+		return
+	}
+
+	http.Error(res, "Not Found", http.StatusNotFound)
+}
+
+type PostHandler struct {
+}
+
+type RootHandler struct {
+}
+
+func (h *RootHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var head string
+	head, req.URL.Path = ShiftPath(req.URL.Path)
+
+	if head == "" {
+		allPosts, err := getAllPosts()
+
+		content := &Posts{IsEmpty: false, List: allPosts}
+
+		if err != nil && len(allPosts) > 0 {
+			content.IsEmpty = true
+		}
+
+		renderTemplatePosts(res, "home", content)
+	}
+
+	http.Error(res, "Not Found", http.StatusNotFound)
+}
+
+var templates = template.Must(template.ParseGlob("templates/blog/*"))
+
+func renderTemplatePosts(res http.ResponseWriter, tmpl string, p *Posts) {
+	err := templates.ExecuteTemplate(res, tmpl+".html", p)
+
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func main() {
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, os.Getenv("GOBLOG_PS"), dbname)
+
+	// since db is global, using := creates a local db
+	var err error
+
+	// open connection to DB
+	db, err = sql.Open("postgres", psqlInfo)
+
+	// opening connection failed
+	if err != nil {
+		panic(err)
+	}
+
+	defer db.Close()
+
+	// connect to DB
+	err = db.Ping()
+
+	// can't connect to DB
+	if err != nil {
+		panic(err)
+	}
+
+	app := &App {
+		PostHandler: new(PostHandler),
+		RootHandler: new(RootHandler),
+	}
+
+	http.ListenAndServe(":8080", app)
+}
+/*
 type DBConnection struct {
 	db *sql.DB
 }
@@ -267,6 +423,24 @@ func (dbc *DBConnection) authorRegisterCompleteHandler(w http.ResponseWriter, r 
 	http.Redirect(w, r, "/author/" + authorId, http.StatusFound)
 }
 
+func (dbc *DBConnection) authorLoginHandler(w http.ResponseWriter, r *http.Request) {
+	renderTemplate(w, "signin")
+}
+
+func (dbc *DBConnection) authorLoginCompleteHandler(w http.ResponseWriter, r *http.Request) {
+	un := r.FormValue("username")
+	ps := r.FormValue("password")
+
+	authorId, err := dbc.createAuthor(un, ps)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/author/" + authorId, http.StatusFound)
+}
+
 var templates = template.Must(template.ParseGlob("templates/blog/*"))
 
 func renderTemplate(w http.ResponseWriter, tmpl string) {
@@ -346,6 +520,7 @@ func main() {
 	http.HandleFunc("/author/", dbconn.authorHandler)
 	http.HandleFunc("/signup/", dbconn.authorRegisterHandler)
 	http.HandleFunc("/register/author/", dbconn.authorRegisterCompleteHandler)
-	//http.HandleFunc("/signin/", dbconn.authorLoginHandler)
+	http.HandleFunc("/signin/", dbconn.authorLoginHandler)
 	http.ListenAndServe(":8080", nil)
 }
+*/
