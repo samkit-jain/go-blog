@@ -130,7 +130,7 @@ func (h *RootHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			content.IsEmpty = true
 		}
 
-		renderTemplatePosts(res, "home", content)
+		renderTemplate(res, "home", content)
 	}
 
 	http.Error(res, "Not Found", http.StatusNotFound)
@@ -138,8 +138,8 @@ func (h *RootHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 var templates = template.Must(template.ParseGlob("templates/blog/*"))
 
-func renderTemplatePosts(res http.ResponseWriter, tmpl string, p *Posts) {
-	err := templates.ExecuteTemplate(res, tmpl+".html", p)
+func renderTemplate(res http.ResponseWriter, tmpl string, data interface{}) {
+	err := templates.ExecuteTemplate(res, tmpl+".html", data)
 
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
