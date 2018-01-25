@@ -46,6 +46,11 @@ type Posts struct {
 	List    []Post
 }
 
+type AuthorPosts struct {
+	AuthorInfo Author
+	List       []Post
+}
+
 func getAllPosts() ([]Post, error) {
 	result := make([]Post, 0)
 	rows, err := db.Query("SELECT post_id, title, SUBSTRING(body FOR 100) AS body FROM posts ORDER BY updated_at DESC;")
@@ -105,6 +110,59 @@ func getPost(postId string) (Post, error) {
 	return result, nil
 }
 
+func getAuthor(authorId string) (AuthorPosts, error) {
+	// Getting Author's info
+	row := db.QueryRow("SELECT username, created_at FROM authors WHERE author_id=$1;", authorId)
+
+	var (
+		authorName      string
+		authorCreatedAt time.Time
+	)
+
+	err := row.Scan(&authorName, &authorCreatedAt)
+
+	if err != nil {
+		return AuthorPosts{}, err
+	}
+
+	posts := make([]Post, 0)
+	result := AuthorPosts{AuthorInfo: Author{Username: authorName, AuthorId: authorId, CreatedAt: authorCreatedAt}, List: posts}
+
+	// Getting Author's posts
+	rows, err := db.Query("SELECT post_id, title, SUBSTRING(body FOR 100) AS body FROM posts WHERE author_id=$1 ORDER BY created_at DESC;", authorId)
+
+	if err != nil {
+		return result, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			postId string
+			title  string
+			body   string
+		)
+
+		err = rows.Scan(&postId, &title, &body)
+
+		if err != nil {
+			return result, err
+		}
+
+		result.List = append(result.List, Post{Id: postId, Title: title, Body: body})
+	}
+
+	// get any error encountered during iteration
+	err = rows.Err()
+
+	if err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
 func ShiftPath(p string) (head, tail string) {
 	p = path.Clean("/" + p)
 	i := strings.Index(p[1:], "/") + 1
@@ -117,6 +175,7 @@ func ShiftPath(p string) (head, tail string) {
 }
 
 type App struct {
+	AuthorHandler *AuthorHandler
 	PostHandler *PostHandler
 	RootHandler *RootHandler
 }
@@ -126,14 +185,40 @@ func (h *App) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	head, req.URL.Path = ShiftPath(req.URL.Path)
 
-	if head == "" {
+	switch head {
+	case "":
 		h.RootHandler.ServeHTTP(res, req)
 		return
-	} else if head == "post" {
+	case "author":
+		h.AuthorHandler.ServeHTTP(res, req)
+		return
+	case "post":
 		h.PostHandler.ServeHTTP(res, req)
+		return
 	}
 
 	http.Error(res, "Not Found", http.StatusNotFound)
+}
+
+type AuthorHandler struct {
+}
+
+func (h *AuthorHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var authorId string
+	authorId, req.URL.Path = ShiftPath(req.URL.Path)
+
+	content, err := getAuthor(authorId)
+
+	if err != nil {
+		http.Error(res, fmt.Sprintf("Invalid author ID %q", authorId), http.StatusBadRequest)
+		return
+		//OR
+		//http.Error(res, err.Error(), http.StatusInternalServerError)
+		//return
+		// depending on the error
+	}
+
+	renderTemplate(res, "author", content)
 }
 
 type PostHandler struct {
@@ -214,8 +299,9 @@ func main() {
 	}
 
 	app := &App {
-		PostHandler: new(PostHandler),
 		RootHandler: new(RootHandler),
+		PostHandler: new(PostHandler),
+		AuthorHandler: new(AuthorHandler),
 	}
 
 	http.ListenAndServe(":8080", app)
