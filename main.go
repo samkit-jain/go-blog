@@ -82,6 +82,29 @@ func getAllPosts() ([]Post, error) {
 	return result, nil
 }
 
+func getPost(postId string) (Post, error) {
+	row := db.QueryRow("SELECT authors.username, authors.author_id, posts.title, posts.body, posts.created_at, posts.updated_at FROM authors, posts WHERE posts.post_id=$1;", postId)
+
+	var (
+		authorName    string
+		authorId      string
+		postTitle     string
+		postBody      string
+		postCreatedAt time.Time
+		postUpdatedAt time.Time
+	)
+
+	err := row.Scan(&authorName, &authorId, &postTitle, &postBody, &postCreatedAt, &postUpdatedAt)
+
+	if err != nil {
+		return Post{}, err
+	}
+
+	result := Post{Id: postId, Title: postTitle, Body: postBody, CreatedAt: postCreatedAt, UpdatedAt: postUpdatedAt, AuthorInfo: Author{Username: authorName, AuthorId: authorId}}
+
+	return result, nil
+}
+
 func ShiftPath(p string) (head, tail string) {
 	p = path.Clean("/" + p)
 	i := strings.Index(p[1:], "/") + 1
@@ -106,12 +129,32 @@ func (h *App) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	if head == "" {
 		h.RootHandler.ServeHTTP(res, req)
 		return
+	} else if head == "post" {
+		h.PostHandler.ServeHTTP(res, req)
 	}
 
 	http.Error(res, "Not Found", http.StatusNotFound)
 }
 
 type PostHandler struct {
+}
+
+func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var postId string
+	postId, req.URL.Path = ShiftPath(req.URL.Path)
+
+	content, err := getPost(postId)
+
+	if err != nil {
+		http.Error(res, fmt.Sprintf("Invalid post ID %q", postId), http.StatusBadRequest)
+		return
+		//OR
+		//http.Error(res, err.Error(), http.StatusInternalServerError)
+		//return
+		// depending on the error
+	}
+
+	renderTemplate(res, "post", content)
 }
 
 type RootHandler struct {
