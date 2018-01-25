@@ -3,18 +3,17 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"golang.org/x/crypto/bcrypt"
+	"html/template"
+	"math/rand"
+	"net/http"
 	"os"
+	"path"
+	"strconv"
+	"strings"
+	"time"
 
 	_ "github.com/lib/pq"
-	"net/http"
-	//"regexp"
-	"html/template"
-	"time"
-	//"golang.org/x/crypto/bcrypt"
-	//"math/rand"
-	//"strconv"
-	"path"
-	"strings"
 )
 
 var db *sql.DB
@@ -44,6 +43,31 @@ type Post struct {
 type AuthorPosts struct {
 	AuthorInfo Author
 	List       []Post
+}
+
+func rangeIn(low, hi int) int {
+	return low + rand.Intn(hi-low)
+}
+
+func HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(hash), nil
+}
+
+func ShiftPath(p string) (head, tail string) {
+	p = path.Clean("/" + p)
+	i := strings.Index(p[1:], "/") + 1
+
+	if i <= 0 {
+		return p[1:], "/"
+	}
+
+	return p[1:i], p[i:]
 }
 
 func getAllPosts() ([]Post, error) {
@@ -158,21 +182,35 @@ func getAuthor(authorId string) (AuthorPosts, error) {
 	return result, nil
 }
 
-func ShiftPath(p string) (head, tail string) {
-	p = path.Clean("/" + p)
-	i := strings.Index(p[1:], "/") + 1
+func createAuthor(un, ps string) (string, error) {
+	hash, err := HashPassword(ps)
 
-	if i <= 0 {
-		return p[1:], "/"
+	if err != nil {
+		return "", err
 	}
 
-	return p[1:i], p[i:]
+	// ADD A FOR LOOP THAT RUNS TILL AUTHOR_ID IS UNIQUE
+	sqlStatement := `
+		INSERT INTO authors (author_id, username, password)
+		VALUES ($1, $2, $3)
+		RETURNING author_id`
+
+	var id string
+
+	err = db.QueryRow(sqlStatement, "100000"+strconv.Itoa(rangeIn(100000000, 999999999)), un, hash).Scan(&id)
+
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
 }
 
 type App struct {
 	AuthorHandler *AuthorHandler
-	PostHandler *PostHandler
-	RootHandler *RootHandler
+	AuthHandler   *AuthHandler
+	PostHandler   *PostHandler
+	RootHandler   *RootHandler
 }
 
 func (h *App) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -183,16 +221,17 @@ func (h *App) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	switch head {
 	case "":
 		h.RootHandler.ServeHTTP(res, req)
-		return
+	case "auth":
+		h.AuthHandler.ServeHTTP(res, req)
 	case "author":
 		h.AuthorHandler.ServeHTTP(res, req)
-		return
 	case "post":
 		h.PostHandler.ServeHTTP(res, req)
-		return
+	default:
+		http.Error(res, "Not Found", http.StatusNotFound)
 	}
 
-	http.Error(res, "Not Found", http.StatusNotFound)
+	return
 }
 
 type AuthorHandler struct {
@@ -220,6 +259,7 @@ type PostHandler struct {
 }
 
 func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	fmt.Println(h)
 	var postId string
 	postId, req.URL.Path = ShiftPath(req.URL.Path)
 
@@ -237,10 +277,94 @@ func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	renderTemplate(res, "post", content)
 }
 
+type AuthHandler struct {
+	SignupHandler *SignupHandler
+}
+
+func (h *AuthHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var head string
+	head, req.URL.Path = ShiftPath(req.URL.Path)
+
+	switch head {
+	case "signup":
+		h.SignupHandler.ServeHTTP(res, req)
+	default:
+		http.Error(res, "Not Found", http.StatusNotFound)
+	}
+
+	return
+}
+
+type SignupHandler struct {
+	SignupStartHandler *SignupStartHandler
+	SignupEndHandler   *SignupEndHandler
+}
+
+func (h *SignupHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var head string
+	head, req.URL.Path = ShiftPath(req.URL.Path)
+
+	switch head {
+	case "":
+		fmt.Println("\n\n\nin\n\n\n")
+		fmt.Println(req.URL.Path)
+		fmt.Println(h)
+
+		h.SignupStartHandler.ServeHTTP(res, req)
+	case "finish":
+		h.SignupEndHandler.ServeHTTP(res, req)
+	default:
+		http.Error(res, "Not Found", http.StatusNotFound)
+	}
+
+	return
+}
+
+type SignupStartHandler struct {
+}
+
+func (h *SignupStartHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	fmt.Println("\n\n\nagain\n\n\n")
+
+	renderTemplate(res, "signup", nil)
+}
+
+type SignupEndHandler struct {
+}
+
+func (h *SignupEndHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var head string
+	head, req.URL.Path = ShiftPath(req.URL.Path)
+
+	if head != "" {
+		http.Error(res, "Not Found", http.StatusNotFound)
+		return
+	}
+
+	if req.Method == "POST" {
+		un := req.FormValue("username")
+		ps := req.FormValue("password")
+
+		authorId, err := createAuthor(un, ps)
+
+		if err != nil {
+			http.Error(res, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(res, req, "/author/"+authorId, http.StatusFound)
+	} else {
+		http.Error(res, "Only POST is allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 type RootHandler struct {
 }
 
 func (h *RootHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	fmt.Println(h)
+
+
 	var head string
 	head, req.URL.Path = ShiftPath(req.URL.Path)
 
@@ -287,101 +411,17 @@ func main() {
 		panic(err)
 	}
 
-	app := &App {
-		RootHandler: new(RootHandler),
-		PostHandler: new(PostHandler),
+	app := &App{
+		RootHandler:   new(RootHandler),
+		PostHandler:   new(PostHandler),
 		AuthorHandler: new(AuthorHandler),
+		AuthHandler:   &AuthHandler{new(SignupHandler)},
 	}
 
 	http.ListenAndServe(":8080", app)
-}
-
-/*
-func rangeIn(low, hi int) int {
-	return low + rand.Intn(hi-low)
-}
-
-func HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-
-	if err != nil {
-		return "", err
-	}
-
-	return string(hash), nil
 }
 
 //func CheckPasswordHash(password, hash string) bool {
 //	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 //	return err == nil
 //}
-
-// create author if not exists
-func (dbc *DBConnection) createAuthor(un, ps string) (string, error) {
-	hash, err := HashPassword(ps)
-
-	if err != nil {
-		return "", err
-	}
-
-	// ADD A FOR LOOP THAT RUNS TILL AUTHOR_ID IS UNIQUE
-	sqlStatement := `
-		INSERT INTO authors (author_id, username, password)
-		VALUES ($1, $2, $3)
-		RETURNING author_id`
-
-	var id string
-
-	err = dbc.db.QueryRow(sqlStatement, "100000" + strconv.Itoa(rangeIn(100000000, 999999999)), un, hash).Scan(&id)
-
-	if err != nil {
-		return "", err
-	}
-
-	return id, nil
-}
-
-func (dbc *DBConnection) authorRegisterHandler(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "signup")
-}
-
-func (dbc *DBConnection) authorRegisterCompleteHandler(w http.ResponseWriter, r *http.Request) {
-	un := r.FormValue("username")
-	ps := r.FormValue("password")
-
-	authorId, err := dbc.createAuthor(un, ps)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/author/" + authorId, http.StatusFound)
-}
-
-func (dbc *DBConnection) authorLoginHandler(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "signin")
-}
-
-func (dbc *DBConnection) authorLoginCompleteHandler(w http.ResponseWriter, r *http.Request) {
-	un := r.FormValue("username")
-	ps := r.FormValue("password")
-
-	authorId, err := dbc.createAuthor(un, ps)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/author/" + authorId, http.StatusFound)
-}
-
-{
-	http.HandleFunc("/author/", dbconn.authorHandler)
-	http.HandleFunc("/signup/", dbconn.authorRegisterHandler)
-	http.HandleFunc("/register/author/", dbconn.authorRegisterCompleteHandler)
-	http.HandleFunc("/signin/", dbconn.authorLoginHandler)
-	http.ListenAndServe(":8080", nil)
-}
-*/
