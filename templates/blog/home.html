@@ -6,11 +6,11 @@
     </head>
     <body>
         <h1>Welcome to Go-Blog!</h1>
-        {{ if .IsEmpty }}
+        {{ if not . }}
             <h2>Nothing here!</h2>
         {{ else }}
             <div>
-                {{ range .List }}
+                {{ range . }}
                     <div>
                         <h3><a href="/post/{{ .Id }}">{{ .Title }}</a></h3>
                         <p>
