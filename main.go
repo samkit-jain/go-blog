@@ -45,6 +45,7 @@ type AuthorPosts struct {
 	List       []Post
 }
 
+// https://stackoverflow.com/questions/38616687/which-way-to-name-a-function-in-go-camelcase-or-semi-camelcase
 func rangeIn(low, hi int) int {
 	seed := rand.NewSource(time.Now().UnixNano())
 	tempRand := rand.New(seed)
@@ -60,6 +61,11 @@ func HashPassword(password string) (string, error) {
 	}
 
 	return string(hash), nil
+}
+
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }
 
 func ShiftPath(p string) (head, tail string) {
@@ -109,7 +115,7 @@ func getAllPosts() ([]Post, error) {
 	return result, nil
 }
 
-func getPost(postId string) (Post, error) {
+func getPostById(postId string) (Post, error) {
 	row := db.QueryRow("SELECT authors.username, authors.author_id, posts.title, posts.body, posts.created_at, posts.updated_at FROM authors, posts WHERE posts.post_id=$1;", postId)
 
 	var (
@@ -132,7 +138,7 @@ func getPost(postId string) (Post, error) {
 	return result, nil
 }
 
-func getAuthor(authorId string) (AuthorPosts, error) {
+func getAuthorById(authorId string) (AuthorPosts, error) {
 	// Getting Author's info
 	row := db.QueryRow("SELECT username, created_at FROM authors WHERE author_id=$1;", authorId)
 
@@ -183,6 +189,20 @@ func getAuthor(authorId string) (AuthorPosts, error) {
 	}
 
 	return result, nil
+}
+
+func getPasswordHash(username string) (string, error) {
+	row := db.QueryRow("SELECT password FROM authors WHERE username=$1;", username)
+
+	var password string
+
+	err := row.Scan(&password)
+
+	if err != nil {
+		return "", err
+	}
+
+	return password, nil
 }
 
 func createAuthor(un, ps string) (string, error) {
@@ -243,7 +263,7 @@ func (h *AuthorHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var authorId string
 	authorId, req.URL.Path = ShiftPath(req.URL.Path)
 
-	content, err := getAuthor(authorId)
+	content, err := getAuthorById(authorId)
 
 	if err != nil {
 		http.Error(res, fmt.Sprintf("Invalid author ID %q", authorId), http.StatusBadRequest)
@@ -264,7 +284,7 @@ func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var postId string
 	postId, req.URL.Path = ShiftPath(req.URL.Path)
 
-	content, err := getPost(postId)
+	content, err := getPostById(postId)
 
 	if err != nil {
 		http.Error(res, fmt.Sprintf("Invalid post ID %q", postId), http.StatusBadRequest)
@@ -280,6 +300,7 @@ func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 type AuthHandler struct {
 	SignupHandler *SignupHandler
+	SigninHandler *SigninHandler
 }
 
 func (h *AuthHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -289,6 +310,8 @@ func (h *AuthHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	switch head {
 	case "signup":
 		h.SignupHandler.ServeHTTP(res, req)
+	case "signin":
+		h.SigninHandler.ServeHTTP(res, req)
 	default:
 		http.Error(res, "Not Found", http.StatusNotFound)
 	}
@@ -353,6 +376,71 @@ func (h *SignupEndHandler) ServeHTTP(res http.ResponseWriter, req *http.Request)
 	}
 }
 
+type SigninHandler struct {
+	SigninStartHandler *SigninStartHandler
+	SigninEndHandler   *SigninEndHandler
+}
+
+func (h *SigninHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var head string
+	head, req.URL.Path = ShiftPath(req.URL.Path)
+
+	switch head {
+	case "":
+		h.SigninStartHandler.ServeHTTP(res, req)
+	case "finish":
+		h.SigninEndHandler.ServeHTTP(res, req)
+	default:
+		http.Error(res, "Not Found", http.StatusNotFound)
+	}
+
+	return
+}
+
+type SigninStartHandler struct {
+}
+
+func (h *SigninStartHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	renderTemplate(res, "signin", nil)
+}
+
+type SigninEndHandler struct {
+}
+
+func (h *SigninEndHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	var head string
+	head, req.URL.Path = ShiftPath(req.URL.Path)
+
+	if head != "" {
+		http.Error(res, "Not Found", http.StatusNotFound)
+		return
+	}
+
+	if req.Method == "POST" {
+		un := req.FormValue("username")
+		ps := req.FormValue("password")
+
+		encryptedPassword, err := getPasswordHash(un)
+
+		if err != nil {
+			http.Error(res, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		psMatched := CheckPasswordHash(ps, encryptedPassword)
+		
+		if psMatched {
+			//http.Redirect(res, req, "/author/"+authorId, http.StatusFound)
+			http.Error(res, "Valid credentials", http.StatusFound)
+		} else {
+			http.Error(res, "Invalid credentials", http.StatusInternalServerError)
+		}
+	} else {
+		http.Error(res, "Only POST is allowed", http.StatusMethodNotAllowed)
+		return
+	}
+}
+
 type RootHandler struct {
 }
 
@@ -407,13 +495,9 @@ func main() {
 		RootHandler:   new(RootHandler),
 		PostHandler:   new(PostHandler),
 		AuthorHandler: new(AuthorHandler),
-		AuthHandler:   &AuthHandler{new(SignupHandler)},
+		AuthHandler:   &AuthHandler{SignupHandler: new(SignupHandler), SigninHandler: new(SigninHandler)},
 	}
 
 	http.ListenAndServe(":8080", app)
 }
 
-//func CheckPasswordHash(password, hash string) bool {
-//	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-//	return err == nil
-//}
