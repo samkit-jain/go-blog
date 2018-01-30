@@ -5,8 +5,6 @@ import (
 	"html/template"
 	"net/http"
 
-	_ "github.com/lib/pq"
-
 	"github.com/samkit-jain/go-blog/helpers"
 	"github.com/samkit-jain/go-blog/models"
 )

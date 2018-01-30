@@ -3,8 +3,6 @@ package main
 import (
 	"net/http"
 
-	_ "github.com/lib/pq"
-
 	"github.com/samkit-jain/go-blog/api"
 	"github.com/samkit-jain/go-blog/config"
 	"github.com/samkit-jain/go-blog/helpers"
@@ -22,6 +20,8 @@ func (h *App) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	head, _ = helpers.ShiftPath(req.URL.Path)
 
 	if head == "api" {
+		_, req.URL.Path = helpers.ShiftPath(req.URL.Path)
+
 		h.ApiHandler.ServeHTTP(res, req)
 	} else {
 		h.WebsiteHandler.ServeHTTP(res, req)

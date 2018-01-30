@@ -1,22 +1,19 @@
 package api
 
 import (
-	"fmt"
-	"html/template"
+	"encoding/json"
 	"net/http"
 
-	_ "github.com/lib/pq"
 
-	"github.com/samkit-jain/go-blog/config"
 	"github.com/samkit-jain/go-blog/helpers"
 	"github.com/samkit-jain/go-blog/models"
+	"github.com/samkit-jain/go-blog/types"
 )
 
 type ApiHandler struct {
-	AuthorHandler *AuthorHandler
-	AuthHandler   *AuthHandler
+	//AuthorHandler *AuthorHandler
+	//AuthHandler   *AuthHandler
 	PostHandler   *PostHandler
-	RootHandler   *RootHandler
 }
 
 func (h *ApiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -25,12 +22,10 @@ func (h *ApiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	head, req.URL.Path = helpers.ShiftPath(req.URL.Path)
 
 	switch head {
-	case "":
-		h.RootHandler.ServeHTTP(res, req)
-	case "auth":
-		h.AuthHandler.ServeHTTP(res, req)
-	case "author":
-		h.AuthorHandler.ServeHTTP(res, req)
+	//case "auth":
+	//	h.AuthHandler.ServeHTTP(res, req)
+	//case "author":
+	//	h.AuthorHandler.ServeHTTP(res, req)
 	case "post":
 		h.PostHandler.ServeHTTP(res, req)
 	default:
@@ -39,7 +34,7 @@ func (h *ApiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	return
 }
-
+/*
 type AuthorHandler struct {
 }
 
@@ -60,28 +55,50 @@ func (h *AuthorHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	renderTemplate(res, "author", content)
 }
-
+*/
 type PostHandler struct {
 }
 
 func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var postId string
+
+	res.Header().Set("Content-Type", "application/json")
+
 	postId, req.URL.Path = helpers.ShiftPath(req.URL.Path)
 
-	content, err := models.GetPostById(postId)
+	if req.URL.Path != "/" {
+		res.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(res).Encode(helpers.NotFound())
 
-	if err != nil {
-		http.Error(res, fmt.Sprintf("Invalid post ID %q", postId), http.StatusBadRequest)
 		return
-		//OR
-		//http.Error(res, err.Error(), http.StatusInternalServerError)
-		//return
-		// depending on the error
 	}
 
-	renderTemplate(res, "post", content)
-}
+	if req.Method == "GET" {
+		if postId == "" {
+			content, _ := models.GetAllPosts()
 
+			res.WriteHeader(http.StatusOK)
+			json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+		} else {
+			content, err := models.GetPostById(postId)
+
+			if err != nil {
+				// Change response based on status, InternalServerError, etc.
+				res.WriteHeader(http.StatusOK)
+				json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "ID does not exist!"})
+			} else {
+				res.WriteHeader(http.StatusOK)
+				json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+			}
+		}
+	} else {
+		res.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(res).Encode(helpers.InvalidMethod())
+	}
+
+	return
+}
+/*
 type AuthHandler struct {
 	SignupHandler *SignupHandler
 	SigninHandler *SigninHandler
@@ -224,43 +241,4 @@ func (h *SigninEndHandler) ServeHTTP(res http.ResponseWriter, req *http.Request)
 		return
 	}
 }
-
-type RootHandler struct {
-}
-
-func (h *RootHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	var head string
-	head, req.URL.Path = helpers.ShiftPath(req.URL.Path)
-
-	if head == "" {
-		content, _ := models.GetAllPosts()
-
-		renderTemplate(res, "home", content)
-		return
-	}
-
-	http.Error(res, "Not Found", http.StatusNotFound)
-}
-
-var templates = template.Must(template.ParseGlob("templates/blog/*"))
-
-func renderTemplate(res http.ResponseWriter, tmpl string, data interface{}) {
-	err := templates.ExecuteTemplate(res, tmpl+".html", data)
-
-	if err != nil {
-		http.Error(res, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func main() {
-	config.InitDB()
-
-	app := &ApiHandler{
-		RootHandler:   new(RootHandler),
-		PostHandler:   new(PostHandler),
-		AuthorHandler: new(AuthorHandler),
-		AuthHandler:   &AuthHandler{SignupHandler: new(SignupHandler), SigninHandler: new(SigninHandler)},
-	}
-
-	http.ListenAndServe(":8080", app)
-}
+*/

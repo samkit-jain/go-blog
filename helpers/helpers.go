@@ -1,12 +1,14 @@
 package helpers
 
 import (
+	"math/rand"
 	"path"
 	"strings"
 	"time"
-	"math/rand"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/samkit-jain/go-blog/types"
 )
 
 func CheckPasswordHash(password, hash string) bool {
@@ -40,4 +42,12 @@ func RangeIn(low, hi int) int {
 	tempRand := rand.New(seed)
 
 	return low + tempRand.Intn(hi-low)
+}
+
+func InvalidMethod() types.DefaultResponse {
+	return types.DefaultResponse{Status: "failure", Message: "Method not allowed!"}
+}
+
+func NotFound() types.DefaultResponse {
+	return types.DefaultResponse{Status: "failure", Message: "URL not found!"}
 }
