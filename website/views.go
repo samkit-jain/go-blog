@@ -44,6 +44,11 @@ func (h *AuthorHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var authorId string
 	authorId, req.URL.Path = helpers.ShiftPath(req.URL.Path)
 
+	if req.URL.Path != "/" {
+		http.Error(res, "Not Found", http.StatusNotFound)
+		return
+	}
+
 	content, err := models.GetAuthorById(authorId)
 
 	if err != nil {
@@ -64,6 +69,11 @@ type PostHandler struct {
 func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var postId string
 	postId, req.URL.Path = helpers.ShiftPath(req.URL.Path)
+
+	if req.URL.Path != "/" {
+		http.Error(res, "Not Found", http.StatusNotFound)
+		return
+	}
 
 	content, err := models.GetPostById(postId)
 
@@ -125,6 +135,11 @@ type SignupStartHandler struct {
 }
 
 func (h *SignupStartHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	if req.URL.Path != "/" {
+		http.Error(res, "Not Found", http.StatusNotFound)
+		return
+	}
+
 	renderTemplate(res, "signup", nil)
 }
 
@@ -134,6 +149,11 @@ type SignupEndHandler struct {
 func (h *SignupEndHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var head string
 	head, req.URL.Path = helpers.ShiftPath(req.URL.Path)
+
+	if req.URL.Path != "/" {
+		http.Error(res, "Not Found", http.StatusNotFound)
+		return
+	}
 
 	if head != "" {
 		http.Error(res, "Not Found", http.StatusNotFound)
@@ -182,6 +202,11 @@ type SigninStartHandler struct {
 }
 
 func (h *SigninStartHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	if req.URL.Path != "/" {
+		http.Error(res, "Not Found", http.StatusNotFound)
+		return
+	}
+
 	renderTemplate(res, "signin", nil)
 }
 
@@ -191,6 +216,11 @@ type SigninEndHandler struct {
 func (h *SigninEndHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var head string
 	head, req.URL.Path = helpers.ShiftPath(req.URL.Path)
+
+	if req.URL.Path != "/" {
+		http.Error(res, "Not Found", http.StatusNotFound)
+		return
+	}
 
 	if head != "" {
 		http.Error(res, "Not Found", http.StatusNotFound)
@@ -228,6 +258,11 @@ type RootHandler struct {
 func (h *RootHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var head string
 	head, req.URL.Path = helpers.ShiftPath(req.URL.Path)
+
+	if req.URL.Path != "/" {
+		http.Error(res, "Not Found", http.StatusNotFound)
+		return
+	}
 
 	if head == "" {
 		content, _ := models.GetAllPosts()
