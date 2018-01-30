@@ -11,6 +11,42 @@ import (
 	"github.com/samkit-jain/go-blog/types"
 )
 
+func GetAllAuthors() ([]types.Author, error) {
+	result := make([]types.Author, 0)
+	rows, err := config.DB.Query("SELECT author_id, username, created_at FROM authors ORDER BY username;")
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			authorId string
+			username string
+			createdAt time.Time
+		)
+
+		err = rows.Scan(&authorId, &username, &createdAt)
+
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, types.Author{AuthorId: authorId, Username: username, CreatedAt: createdAt})
+	}
+
+	// get any error encountered during iteration
+	err = rows.Err()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func GetAuthorById(authorId string) (types.AuthorPosts, error) {
 	// Getting Author's info
 	row := config.DB.QueryRow("SELECT username, created_at FROM authors WHERE author_id=$1;", authorId)

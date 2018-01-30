@@ -11,7 +11,7 @@ import (
 )
 
 type ApiHandler struct {
-	//AuthorHandler *AuthorHandler
+	AuthorHandler *AuthorHandler
 	//AuthHandler   *AuthHandler
 	PostHandler   *PostHandler
 }
@@ -24,8 +24,8 @@ func (h *ApiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	switch head {
 	//case "auth":
 	//	h.AuthHandler.ServeHTTP(res, req)
-	//case "author":
-	//	h.AuthorHandler.ServeHTTP(res, req)
+	case "author":
+		h.AuthorHandler.ServeHTTP(res, req)
 	case "post":
 		h.PostHandler.ServeHTTP(res, req)
 	default:
@@ -34,28 +34,50 @@ func (h *ApiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	return
 }
-/*
+
 type AuthorHandler struct {
 }
 
 func (h *AuthorHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var authorId string
+
+	res.Header().Set("Content-Type", "application/json")
+
 	authorId, req.URL.Path = helpers.ShiftPath(req.URL.Path)
 
-	content, err := models.GetAuthorById(authorId)
+	if req.URL.Path != "/" {
+		res.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(res).Encode(helpers.NotFound())
 
-	if err != nil {
-		http.Error(res, fmt.Sprintf("Invalid author ID %q", authorId), http.StatusBadRequest)
 		return
-		//OR
-		//http.Error(res, err.Error(), http.StatusInternalServerError)
-		//return
-		// depending on the error
 	}
 
-	renderTemplate(res, "author", content)
+	if req.Method == "GET" {
+		if authorId == "" {
+			content, _ := models.GetAllAuthors()
+
+			res.WriteHeader(http.StatusOK)
+			json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+		} else {
+			content, err := models.GetAuthorById(authorId)
+
+			if err != nil {
+				// Change response based on status, InternalServerError, etc.
+				res.WriteHeader(http.StatusOK)
+				json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "ID does not exist!"})
+			} else {
+				res.WriteHeader(http.StatusOK)
+				json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+			}
+		}
+	} else {
+		res.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(res).Encode(helpers.InvalidMethod())
+	}
+
+	return
 }
-*/
+
 type PostHandler struct {
 }
 
