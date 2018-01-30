@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-
+	"fmt"
 	"github.com/samkit-jain/go-blog/helpers"
 	"github.com/samkit-jain/go-blog/models"
 	"github.com/samkit-jain/go-blog/types"
@@ -13,7 +13,7 @@ import (
 type ApiHandler struct {
 	AuthorHandler *AuthorHandler
 	//AuthHandler   *AuthHandler
-	PostHandler   *PostHandler
+	PostHandler *PostHandler
 }
 
 func (h *ApiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -99,6 +99,8 @@ func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		if postId == "" {
 			content, _ := models.GetAllPosts()
 
+			fmt.Println(content)
+
 			res.WriteHeader(http.StatusOK)
 			json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
 		} else {
@@ -120,6 +122,7 @@ func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	return
 }
+
 /*
 type AuthHandler struct {
 	SignupHandler *SignupHandler

@@ -23,8 +23,8 @@ func GetAllAuthors() ([]types.Author, error) {
 
 	for rows.Next() {
 		var (
-			authorId string
-			username string
+			authorId  string
+			username  string
 			createdAt time.Time
 		)
 
@@ -66,7 +66,7 @@ func GetAuthorById(authorId string) (types.AuthorPosts, error) {
 	result := types.AuthorPosts{AuthorInfo: types.Author{Username: authorName, AuthorId: authorId, CreatedAt: authorCreatedAt}, List: posts}
 
 	// Getting Author's posts
-	rows, err := config.DB.Query("SELECT post_id, title, SUBSTRING(body FOR 100) AS body FROM posts WHERE author_id=$1 ORDER BY created_at DESC;", authorId)
+	rows, err := config.DB.Query("SELECT post_id, title, body, created_at, updated_at FROM posts WHERE author_id=$1 ORDER BY created_at DESC;", authorId)
 
 	if err != nil {
 		return result, err
@@ -76,18 +76,20 @@ func GetAuthorById(authorId string) (types.AuthorPosts, error) {
 
 	for rows.Next() {
 		var (
-			postId string
-			title  string
-			body   string
+			postId    string
+			title     string
+			body      string
+			createdAt time.Time
+			updatedAt time.Time
 		)
 
-		err = rows.Scan(&postId, &title, &body)
+		err = rows.Scan(&postId, &title, &body, &createdAt, &updatedAt)
 
 		if err != nil {
 			return result, err
 		}
 
-		result.List = append(result.List, types.Post{Id: postId, Title: title, Body: body})
+		result.List = append(result.List, types.Post{Id: postId, Title: title, Body: body, CreatedAt: createdAt, UpdatedAt: updatedAt, AuthorInfo: types.Author{Username: authorName, AuthorId: authorId, CreatedAt: authorCreatedAt}})
 	}
 
 	// get any error encountered during iteration

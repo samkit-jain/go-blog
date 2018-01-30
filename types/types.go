@@ -3,23 +3,23 @@ package types
 import "time"
 
 type Author struct {
-	Username  string
-	AuthorId  string
-	CreatedAt time.Time
+	Username  string    `json:"username"`
+	AuthorId  string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Post struct {
-	Id         string
-	Title      string
-	Body       string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	AuthorInfo Author
+	Id         string    `json:"id"`
+	Title      string    `json:"title"`
+	Body       string    `json:"body"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	AuthorInfo Author    `json:"author"`
 }
 
 type AuthorPosts struct {
-	AuthorInfo Author
-	List       []Post
+	AuthorInfo Author `json:"author"`
+	List       []Post `json:"posts"`
 }
 
 type DefaultResponse struct {
