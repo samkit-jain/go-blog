@@ -50,7 +50,7 @@ func GetAllPosts() ([]types.Post, error) {
 }
 
 func GetPostById(postId string) (types.Post, error) {
-	row := config.DB.QueryRow("SELECT authors.username, authors.author_id, authors.created_at, posts.title, posts.body, posts.created_at, posts.updated_at FROM authors, posts WHERE posts.post_id=$1;", postId)
+	row := config.DB.QueryRow("SELECT authors.username, authors.author_id, authors.created_at, posts.title, posts.body, posts.created_at, posts.updated_at FROM authors JOIN posts ON(authors.author_id=posts.author_id) WHERE posts.post_id=$1;", postId)
 
 	var (
 		authorName      string
