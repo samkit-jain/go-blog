@@ -6,7 +6,9 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/samkit-jain/go-blog/config"
+	"github.com/samkit-jain/go-blog/helpers"
 	"github.com/samkit-jain/go-blog/types"
+	"strconv"
 )
 
 func GetAllPosts() ([]types.Post, error) {
@@ -69,4 +71,21 @@ func GetPostById(postId string) (types.Post, error) {
 	result := types.Post{Id: postId, Title: postTitle, Body: postBody, CreatedAt: postCreatedAt, UpdatedAt: postUpdatedAt, AuthorInfo: types.Author{Username: authorName, AuthorId: authorId, CreatedAt: authorCreatedAt}}
 
 	return result, nil
+}
+
+func CreatePost(title, body, author string) (string, error) {
+	for {
+		sqlStatement := `
+		INSERT INTO posts (post_id, title, body, author_id)
+		VALUES ($1, $2, $3, $4)
+		RETURNING post_id`
+
+		var id string
+
+		err := config.DB.QueryRow(sqlStatement, "500000"+strconv.Itoa(helpers.RangeIn(100000000, 999999999)), title, body, author).Scan(&id)
+
+		if err == nil {
+			return id, nil
+		}
+	}
 }

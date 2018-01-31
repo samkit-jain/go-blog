@@ -25,9 +25,9 @@ func (h *ApiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	head, req.URL.Path = helpers.ShiftPath(req.URL.Path)
 
 	switch head {
-	case "author":
+	case "authors":
 		h.AuthorHandler.ServeHTTP(res, req)
-	case "post":
+	case "posts":
 		h.PostHandler.ServeHTTP(res, req)
 	case "login":
 		h.LoginHandler.ServeHTTP(res, req)
@@ -98,7 +98,8 @@ func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if req.Method == "GET" {
+	switch req.Method {
+	case "GET":
 		if postId == "" {
 			content, _ := models.GetAllPosts()
 
@@ -116,7 +117,37 @@ func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 				json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
 			}
 		}
-	} else {
+	case "POST":
+		if postId == "" {
+			tokenString := req.Header.Get("token")
+
+			token, _ := jwt.ParseWithClaims(tokenString, &types.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+				return []byte(os.Getenv("GOBLOG_SIGNING_KEY")), nil
+			})
+
+			if claims, ok := token.Claims.(*types.CustomClaims); ok && token.Valid {
+				title := req.FormValue("title")
+				body := req.FormValue("body")
+
+				postId, err := models.CreatePost(title, body, claims.Id)
+
+				if err != nil {
+					res.WriteHeader(http.StatusOK)
+					json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: err.Error()})
+
+					return
+				}
+
+				res.WriteHeader(http.StatusOK)
+				json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: postId})
+			} else {
+				res.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "Unauthorized!"})
+			}
+		} else {
+			// update post
+		}
+	default:
 		res.WriteHeader(http.StatusMethodNotAllowed)
 		json.NewEncoder(res).Encode(helpers.InvalidMethod())
 	}
