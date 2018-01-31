@@ -145,7 +145,39 @@ func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 				json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "Unauthorized!"})
 			}
 		} else {
-			// update post
+			res.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(res).Encode(helpers.NotFound())
+		}
+	case "PUT":
+		if postId != "" {
+			tokenString := req.Header.Get("token")
+
+			token, _ := jwt.ParseWithClaims(tokenString, &types.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+				return []byte(os.Getenv("GOBLOG_SIGNING_KEY")), nil
+			})
+
+			if claims, ok := token.Claims.(*types.CustomClaims); ok && token.Valid {
+				title := req.FormValue("title")
+				body := req.FormValue("body")
+
+				postId, err := models.UpdatePost(postId, title, body, claims.Id)
+
+				if err != nil {
+					res.WriteHeader(http.StatusOK)
+					json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: err.Error()})
+
+					return
+				}
+
+				res.WriteHeader(http.StatusOK)
+				json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: postId})
+			} else {
+				res.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "Unauthorized!"})
+			}
+		} else {
+			res.WriteHeader(http.StatusMethodNotAllowed)
+			json.NewEncoder(res).Encode(helpers.InvalidMethod())
 		}
 	default:
 		res.WriteHeader(http.StatusMethodNotAllowed)

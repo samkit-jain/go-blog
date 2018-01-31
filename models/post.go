@@ -78,7 +78,7 @@ func CreatePost(title, body, author string) (string, error) {
 		sqlStatement := `
 		INSERT INTO posts (post_id, title, body, author_id)
 		VALUES ($1, $2, $3, $4)
-		RETURNING post_id`
+		RETURNING post_id;`
 
 		var id string
 
@@ -88,4 +88,18 @@ func CreatePost(title, body, author string) (string, error) {
 			return id, nil
 		}
 	}
+}
+
+func UpdatePost(postId, title, body, author string) (string, error) {
+	sqlStatement := "UPDATE posts SET title=$1, body=$2 WHERE author_id=$3 AND post_id=$4 RETURNING post_id;"
+
+	var id string
+
+	err := config.DB.QueryRow(sqlStatement, title, body, author, postId).Scan(&id)
+
+	if err == nil {
+		return id, nil
+	}
+
+	return "", err
 }
