@@ -1,6 +1,8 @@
 package models
 
 import (
+	"database/sql"
+	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -8,7 +10,6 @@ import (
 	"github.com/samkit-jain/go-blog/config"
 	"github.com/samkit-jain/go-blog/helpers"
 	"github.com/samkit-jain/go-blog/types"
-	"strconv"
 )
 
 func GetAllPosts() ([]types.Post, error) {
@@ -102,4 +103,16 @@ func UpdatePost(postId, title, body, author string) (string, error) {
 	}
 
 	return "", err
+}
+
+func DeletePost(postId, author string) error {
+	sqlStatement := "DELETE FROM posts WHERE author_id=$1 AND post_id=$2;"
+
+	err := config.DB.QueryRow(sqlStatement, author, postId).Scan()
+
+	if err == sql.ErrNoRows {
+		err = nil
+	}
+
+	return err
 }
