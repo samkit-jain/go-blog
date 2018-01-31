@@ -116,3 +116,15 @@ func DeletePost(postId, author string) error {
 
 	return err
 }
+
+func DeletePosts(author string) error {
+	sqlStatement := "DELETE FROM posts WHERE author_id=$1;"
+
+	err := config.DB.QueryRow(sqlStatement, author).Scan()
+
+	if err == sql.ErrNoRows {
+		err = nil
+	}
+
+	return err
+}

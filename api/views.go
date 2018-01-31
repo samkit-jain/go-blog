@@ -204,8 +204,28 @@ func (h *PostHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 				json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "Unauthorized!"})
 			}
 		} else {
-			res.WriteHeader(http.StatusMethodNotAllowed)
-			json.NewEncoder(res).Encode(helpers.InvalidMethod())
+			tokenString := req.Header.Get("token")
+
+			token, _ := jwt.ParseWithClaims(tokenString, &types.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+				return []byte(os.Getenv("GOBLOG_SIGNING_KEY")), nil
+			})
+
+			if claims, ok := token.Claims.(*types.CustomClaims); ok && token.Valid {
+				err := models.DeletePosts(claims.Id)
+
+				if err != nil {
+					res.WriteHeader(http.StatusOK)
+					json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: err.Error()})
+
+					return
+				}
+
+				res.WriteHeader(http.StatusOK)
+				json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: "Deleted!"})
+			} else {
+				res.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "Unauthorized!"})
+			}
 		}
 	default:
 		res.WriteHeader(http.StatusMethodNotAllowed)
