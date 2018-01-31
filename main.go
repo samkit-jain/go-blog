@@ -35,7 +35,7 @@ func main() {
 
 	app := &App{
 		ApiHandler:     new(api.ApiHandler),
-		WebsiteHandler: new(website.WebsiteHandler),
+		WebsiteHandler: website.NewWebsiteHandler(),
 	}
 
 	http.ListenAndServe(":8080", app)

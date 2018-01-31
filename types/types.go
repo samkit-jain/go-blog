@@ -1,6 +1,10 @@
 package types
 
-import "time"
+import (
+	"time"
+
+	"github.com/dgrijalva/jwt-go"
+)
 
 type Author struct {
 	Username  string    `json:"username"`
@@ -30,4 +34,9 @@ type DefaultResponse struct {
 type ValidResponse struct {
 	Status  string      `json:"status"`
 	Content interface{} `json:"content"`
+}
+
+type CustomClaims struct {
+	Id string `json:"id"`
+	jwt.StandardClaims
 }

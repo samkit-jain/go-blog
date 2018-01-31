@@ -102,6 +102,20 @@ func GetAuthorById(authorId string) (types.AuthorPosts, error) {
 	return result, nil
 }
 
+func GetAuthorIdByUsername(username string) (string, error) {
+	row := config.DB.QueryRow("SELECT author_id FROM authors WHERE username=$1;", username)
+
+	var authorId string
+
+	err := row.Scan(&authorId)
+
+	if err != nil {
+		return "", err
+	}
+
+	return authorId, nil
+}
+
 func GetPasswordHash(username string) (string, error) {
 	row := config.DB.QueryRow("SELECT password FROM authors WHERE username=$1;", username)
 

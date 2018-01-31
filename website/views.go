@@ -16,6 +16,18 @@ type WebsiteHandler struct {
 	RootHandler   *RootHandler
 }
 
+func NewWebsiteHandler() *WebsiteHandler {
+	return &WebsiteHandler{
+		AuthorHandler: new(AuthorHandler),
+		PostHandler:   new(PostHandler),
+		RootHandler:   new(RootHandler),
+		AuthHandler: &AuthHandler{
+			SignupHandler: new(SignupHandler),
+			SigninHandler: new(SigninHandler),
+		},
+	}
+}
+
 func (h *WebsiteHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var head string
 
