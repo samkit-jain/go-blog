@@ -34,7 +34,7 @@ func main() {
 	config.InitDB()
 
 	app := &App{
-		ApiHandler:     new(api.ApiHandler),
+		ApiHandler:     api.NewApiHandler(),
 		WebsiteHandler: website.NewWebsiteHandler(),
 	}
 

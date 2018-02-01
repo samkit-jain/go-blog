@@ -1,3 +1,4 @@
+// Package config initialises a postgresql database instance
 package config
 
 import (
@@ -8,6 +9,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// database credentials
 const (
 	host   = "localhost"
 	port   = 5432
@@ -15,18 +17,20 @@ const (
 	dbname = "goblog"
 )
 
+// database connection instance
 var DB *sql.DB
 
 func InitDB() {
+	// creating the database connection string
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, os.Getenv("GOBLOG_PS"), dbname)
 
-	// since DB is global, using := creates a local DB
 	var err error
 
-	// open connection to DB
+	// since DB is global, using := creates a local DB
+	// validating information provided
 	DB, err = sql.Open("postgres", psqlInfo)
 
-	// opening connection failed
+	// information provided incorrect
 	if err != nil {
 		panic(err)
 	}
