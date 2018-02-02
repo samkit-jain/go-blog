@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"database/sql"
 	"github.com/samkit-jain/go-blog/helpers"
 	"github.com/samkit-jain/go-blog/models"
 	"github.com/samkit-jain/go-blog/types"
@@ -47,7 +48,7 @@ func (h *ApiHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	case "login": // <base>/api/login/...
 		h.LoginHandler.ServeHTTP(res, req)
 	default: // all other
-		http.Error(res, "Not Found", http.StatusNotFound)
+		helpers.NotFoundResponse(res)
 	}
 
 	return
@@ -96,6 +97,7 @@ type AuthorIdPresentHandler struct {
 }
 
 // AuthorIdPresentHandler's ServeHTTP returns information of author (including posts) whose id is authorId
+//
 // GET	<base>/api/authors/:authorId
 func (h *AuthorIdPresentHandler) Handler(authorId string) http.Handler {
 	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
@@ -103,12 +105,14 @@ func (h *AuthorIdPresentHandler) Handler(authorId string) http.Handler {
 		res.Header().Set("Content-Type", "application/json")
 
 		if content, err := models.GetAuthorById(authorId); err != nil {
-			// Change response based on status, InternalServerError, etc.
-			res.WriteHeader(http.StatusOK)
-			json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "ID does not exist!"})
+			if err == sql.ErrNoRows {
+				helpers.BadRequestResponse(res, "Author does not exist!")
+			} else {
+				helpers.InternalServerErrorResponse(res, err.Error())
+			}
 		} else {
 			res.WriteHeader(http.StatusOK)
-			json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+			json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: helpers.CreatePostWithoutAuthor(content)})
 		}
 
 		return
@@ -120,15 +124,23 @@ type AuthorIdNotPresentHandler struct {
 }
 
 // AuthorIdNotPresentHandler's ServeHTTP returns information of all authors (excluding posts)
+//
 // GET	<base>/api/authors/
 func (h *AuthorIdNotPresentHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	content, _ := models.GetAllAuthors()
-
 	// set response header's content-type
 	res.Header().Set("Content-Type", "application/json")
 
-	res.WriteHeader(http.StatusOK)
-	json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+	if content, err := models.GetAllAuthors(); err != nil {
+		if err == sql.ErrNoRows {
+			res.WriteHeader(http.StatusOK)
+			json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+		} else {
+			helpers.InternalServerErrorResponse(res, err.Error())
+		}
+	} else {
+		res.WriteHeader(http.StatusOK)
+		json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+	}
 
 	return
 }
@@ -171,8 +183,11 @@ type PostIdPresentHandler struct {
 }
 
 // PostIdPresentHandler's method to handle URLs of type
+//
 // GET  	<base>/api/posts/:postId	Info of a specific post
+//
 // PUT  	<base>/api/posts/:postId	Update a specific post
+//
 // DELETE  	<base>/api/posts/:postId	Delete a specific post
 func (h *PostIdPresentHandler) Handler(postId, authorId string) http.Handler {
 	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
@@ -182,9 +197,11 @@ func (h *PostIdPresentHandler) Handler(postId, authorId string) http.Handler {
 		switch req.Method {
 		case "GET":
 			if content, err := models.GetPostById(postId); err != nil {
-				// Change response based on status, InternalServerError, etc.
-				res.WriteHeader(http.StatusOK)
-				json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "ID does not exist!"})
+				if err == sql.ErrNoRows {
+					helpers.BadRequestResponse(res, "Post does not exist!")
+				} else {
+					helpers.InternalServerErrorResponse(res, err.Error())
+				}
 			} else {
 				res.WriteHeader(http.StatusOK)
 				json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
@@ -195,8 +212,11 @@ func (h *PostIdPresentHandler) Handler(postId, authorId string) http.Handler {
 				body := req.FormValue("body")
 
 				if postId, err := models.UpdatePost(postId, title, body, authorId); err != nil {
-					res.WriteHeader(http.StatusOK)
-					json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: err.Error()})
+					if err == sql.ErrNoRows {
+						helpers.BadRequestResponse(res, "You don't have write access to the post!")
+					} else {
+						helpers.InternalServerErrorResponse(res, err.Error())
+					}
 				} else {
 					res.WriteHeader(http.StatusOK)
 					json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: postId})
@@ -207,11 +227,14 @@ func (h *PostIdPresentHandler) Handler(postId, authorId string) http.Handler {
 		case "DELETE":
 			if authorId != "" {
 				if err := models.DeletePost(postId, authorId); err != nil {
-					res.WriteHeader(http.StatusOK)
-					json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: err.Error()})
+					if err == sql.ErrNoRows {
+						helpers.BadRequestResponse(res, "You don't have write access to the post!")
+					} else {
+						helpers.InternalServerErrorResponse(res, err.Error())
+					}
 				} else {
 					res.WriteHeader(http.StatusOK)
-					json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: "Deleted!"})
+					json.NewEncoder(res).Encode(types.DefaultResponse{Status: "success", Message: "Post deleted!"})
 				}
 			} else {
 				helpers.ForbiddenResponse(res)
@@ -230,8 +253,11 @@ type PostIdNotPresentHandler struct {
 }
 
 // PostIdPresentHandler's method to handle URLs of type
+//
 // GET		/posts/			Info of all posts
+//
 // POST 	/posts/			Create a new post
+//
 // DELETE	/posts/			Delete all posts of a specific author
 func (h *PostIdNotPresentHandler) Handler(authorId string) http.Handler {
 	return http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
@@ -240,10 +266,17 @@ func (h *PostIdNotPresentHandler) Handler(authorId string) http.Handler {
 
 		switch req.Method {
 		case "GET":
-			content, _ := models.GetAllPosts()
-
-			res.WriteHeader(http.StatusOK)
-			json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+			if content, err := models.GetAllPosts(); err != nil {
+				if err == sql.ErrNoRows {
+					res.WriteHeader(http.StatusOK)
+					json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+				} else {
+					helpers.InternalServerErrorResponse(res, err.Error())
+				}
+			} else {
+				res.WriteHeader(http.StatusOK)
+				json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+			}
 		case "POST":
 			if authorId != "" {
 				// read passed form parameters
@@ -251,8 +284,11 @@ func (h *PostIdNotPresentHandler) Handler(authorId string) http.Handler {
 				body := req.FormValue("body")
 
 				if postId, err := models.CreatePost(title, body, authorId); err != nil {
-					res.WriteHeader(http.StatusOK)
-					json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: err.Error()})
+					if err == sql.ErrNoRows {
+						helpers.BadRequestResponse(res, "You don't have write access to the post!")
+					} else {
+						helpers.InternalServerErrorResponse(res, err.Error())
+					}
 				} else {
 					res.WriteHeader(http.StatusOK)
 					json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: postId})
@@ -263,15 +299,17 @@ func (h *PostIdNotPresentHandler) Handler(authorId string) http.Handler {
 		case "DELETE":
 			if authorId != "" {
 				if err := models.DeletePosts(authorId); err != nil {
-					res.WriteHeader(http.StatusOK)
-					json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: err.Error()})
+					if err == sql.ErrNoRows {
+						helpers.BadRequestResponse(res, "You don't have write access to the post!")
+					} else {
+						helpers.InternalServerErrorResponse(res, err.Error())
+					}
 				} else {
 					res.WriteHeader(http.StatusOK)
 					json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: "Deleted!"})
 				}
 			} else {
 				helpers.ForbiddenResponse(res)
-				return
 			}
 		default:
 			helpers.MethodNotAllowedResponse(res)
@@ -286,6 +324,7 @@ type LoginHandler struct {
 }
 
 // LoginHandler's ServeHTTP logs in a user and returns a session token
+//
 // POST	<base>/api/login/
 func (h *LoginHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	res.Header().Set("Content-Type", "application/json")

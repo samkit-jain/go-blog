@@ -25,7 +25,9 @@ func CheckPasswordHash(password, hash string) bool {
 
 // ShiftPath splits the URL path component into two segments where first segment is the portion
 // before first slash and rest is second
+//
 // Parameter: /this/is/a/url/
+//
 // Result: this /is/a/url
 func ShiftPath(p string) (head, tail string) {
 	p = path.Clean("/" + p)
@@ -92,8 +94,51 @@ func CreateToken(authorId string) (string, error) {
 	return token.SignedString([]byte(os.Getenv("GOBLOG_SIGNING_KEY")))
 }
 
+// CreatePostWithoutAuthor removes the Author field from the array of Post
+func CreatePostWithoutAuthor(content types.AuthorPosts) interface{} {
+	type customAuthor struct {
+		Username  string    `json:"username"`
+		AuthorId  string    `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+	}
+
+	type customPost struct {
+		Id        string    `json:"id"`
+		Title     string    `json:"title"`
+		Body      string    `json:"body"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+	}
+
+	type customStruct struct {
+		AuthorInfo customAuthor `json:"author"`
+		List       []customPost `json:"posts"`
+	}
+
+	var returnVal customStruct
+
+	returnVal.AuthorInfo = customAuthor{
+		Username:  content.AuthorInfo.Username,
+		AuthorId:  content.AuthorInfo.AuthorId,
+		CreatedAt: content.AuthorInfo.CreatedAt,
+	}
+
+	returnVal.List = make([]customPost, len(content.List))
+
+	for index, item := range content.List {
+		returnVal.List[index].Id = item.Id
+		returnVal.List[index].Title = item.Title
+		returnVal.List[index].Body = item.Body
+		returnVal.List[index].CreatedAt = item.CreatedAt
+		returnVal.List[index].UpdatedAt = item.UpdatedAt
+	}
+
+	return returnVal
+}
+
 // MethodNotAllowedResponse returns a JSON response indicating requested URL cannot be queried with
 // the given method type
+//
 // Example - Doing a POST on a GET only URL
 func MethodNotAllowedResponse(res http.ResponseWriter) {
 	// set response header's content-type
@@ -118,23 +163,35 @@ func NotFoundResponse(res http.ResponseWriter) {
 
 // ForbiddenResponse returns a JSON response indicating token provided was invalid or authorId in
 // the token didn't match with the postId provided.
+//
 // Example - Session expired or post's author and logged in author mismatch
 func ForbiddenResponse(res http.ResponseWriter) {
 	// set response header's content-type
 	res.Header().Set("Content-Type", "application/json")
 
 	res.WriteHeader(http.StatusForbidden)
-	json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "Unauthorized!"})
+	json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: "Not logged in!"})
 
 	return
 }
 
-// ForbiddenResponse returns a JSON response indicating that some unexpected error occurred
+// InternalServerError returns a JSON response indicating that some unexpected error occurred
 func InternalServerErrorResponse(res http.ResponseWriter, message string) {
 	// set response header's content-type
 	res.Header().Set("Content-Type", "application/json")
 
 	res.WriteHeader(http.StatusInternalServerError)
+	json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: message})
+
+	return
+}
+
+// BadRequestResponse returns a JSON response indicating that some unexpected error occurred
+func BadRequestResponse(res http.ResponseWriter, message string) {
+	// set response header's content-type
+	res.Header().Set("Content-Type", "application/json")
+
+	res.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(res).Encode(types.DefaultResponse{Status: "failure", Message: message})
 
 	return

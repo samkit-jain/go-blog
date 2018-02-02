@@ -11,9 +11,16 @@ import (
 
 // database credentials
 const (
-	host   = "localhost"
-	port   = 5432
-	user   = "samkit"
+	// host to connect to
+	host = "localhost"
+
+	// host to connect to
+	port = 5432
+
+	// user to sign in as
+	user = "samkit"
+
+	// name of the database to connect to
 	dbname = "goblog"
 )
 

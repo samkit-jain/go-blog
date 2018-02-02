@@ -1,3 +1,4 @@
+// Package models provides helper functions for querying database
 package models
 
 import (
@@ -5,23 +6,26 @@ import (
 	"strconv"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 
 	"github.com/samkit-jain/go-blog/config"
 	"github.com/samkit-jain/go-blog/helpers"
 	"github.com/samkit-jain/go-blog/types"
 )
 
+// GetAllPosts returns a list of all the posts
 func GetAllPosts() ([]types.Post, error) {
 	result := make([]types.Post, 0)
 	rows, err := config.DB.Query("SELECT post_id, title, body, created_at, updated_at FROM posts ORDER BY updated_at DESC;")
 
+	// ooh, an error
 	if err != nil {
 		return nil, err
 	}
 
 	defer rows.Close()
 
+	// iterate through all the rows
 	for rows.Next() {
 		var (
 			postId    string
@@ -50,6 +54,7 @@ func GetAllPosts() ([]types.Post, error) {
 	return result, nil
 }
 
+// GetPostById returns the post specified by postId
 func GetPostById(postId string) (types.Post, error) {
 	row := config.DB.QueryRow("SELECT authors.username, authors.author_id, authors.created_at, posts.title, posts.body, posts.created_at, posts.updated_at FROM authors JOIN posts ON(authors.author_id=posts.author_id) WHERE posts.post_id=$1;", postId)
 
@@ -65,6 +70,7 @@ func GetPostById(postId string) (types.Post, error) {
 
 	err := row.Scan(&authorName, &authorId, &authorCreatedAt, &postTitle, &postBody, &postCreatedAt, &postUpdatedAt)
 
+	// an error including sql.ErrNoRows
 	if err != nil {
 		return types.Post{}, err
 	}
@@ -74,7 +80,11 @@ func GetPostById(postId string) (types.Post, error) {
 	return result, nil
 }
 
+// CreatePost creates a post for author with title and body
 func CreatePost(title, body, author string) (string, error) {
+	i := 1
+
+	// loop till unique ID created but not till infinity
 	for {
 		sqlStatement := `
 		INSERT INTO posts (post_id, title, body, author_id)
@@ -87,10 +97,20 @@ func CreatePost(title, body, author string) (string, error) {
 
 		if err == nil {
 			return id, nil
+		} else if i == 100 {
+			return "", err
+		} else if pgerr, ok := err.(*pq.Error); ok {
+			// 23505 -> primary key exists (unique_violation)
+			if pgerr.Code != "23505" {
+				return "", err
+			}
 		}
+
+		i += 1
 	}
 }
 
+// UpdatePost modifies an author's post
 func UpdatePost(postId, title, body, author string) (string, error) {
 	sqlStatement := "UPDATE posts SET title=$1, body=$2 WHERE author_id=$3 AND post_id=$4 RETURNING post_id;"
 
@@ -105,6 +125,7 @@ func UpdatePost(postId, title, body, author string) (string, error) {
 	return "", err
 }
 
+// DeletePost deletes an author's post
 func DeletePost(postId, author string) error {
 	sqlStatement := "DELETE FROM posts WHERE author_id=$1 AND post_id=$2;"
 
@@ -117,6 +138,7 @@ func DeletePost(postId, author string) error {
 	return err
 }
 
+// DeletePost deletes an author's all posts
 func DeletePosts(author string) error {
 	sqlStatement := "DELETE FROM posts WHERE author_id=$1;"
 

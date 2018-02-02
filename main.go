@@ -1,3 +1,4 @@
+// Package main is the entry point of the app
 package main
 
 import (
@@ -9,11 +10,13 @@ import (
 	"github.com/samkit-jain/go-blog/website"
 )
 
+// App is the main super handler that routes URLs to their specific handlers
 type App struct {
 	WebsiteHandler *website.WebsiteHandler
 	ApiHandler     *api.ApiHandler
 }
 
+// App's ServeHTTP routes URLs to the handlers for API and website
 func (h *App) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var head string
 
@@ -31,12 +34,15 @@ func (h *App) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+	// initialise database connection
 	config.InitDB()
 
+	// initialise main handler
 	app := &App{
 		ApiHandler:     api.NewApiHandler(),
 		WebsiteHandler: website.NewWebsiteHandler(),
 	}
 
+	// start listening
 	http.ListenAndServe(":8080", app)
 }
