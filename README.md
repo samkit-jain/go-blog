@@ -4,7 +4,7 @@ Learning Go by developing a web application. Features both API and website.
 
 # API
 
-API documentation available at: link
+API documentation available [here](https://documenter.getpostman.com/view/3659038/goblog/RVfqmtVK)
 
 # MIT License
 
