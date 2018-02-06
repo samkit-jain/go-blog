@@ -56,6 +56,10 @@ func GetAuthorIdFromHeader(req *http.Request) string {
 	// get session token from HEADER
 	tokenString := req.Header.Get("token")
 
+	if tokenString == "" {
+		return ""
+	}
+
 	// parse token
 	token, _ := jwt.ParseWithClaims(tokenString, &types.CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(os.Getenv("GOBLOG_SIGNING_KEY")), nil

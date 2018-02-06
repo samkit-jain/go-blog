@@ -16,7 +16,7 @@ import (
 // GetAllPosts returns a list of all the posts
 func GetAllPosts() ([]types.Post, error) {
 	result := make([]types.Post, 0)
-	rows, err := config.DB.Query("SELECT post_id, title, body, created_at, updated_at FROM posts ORDER BY updated_at DESC;")
+	rows, err := config.DB.Query("SELECT authors.username, authors.author_id, authors.created_at, posts.post_id, posts.title, posts.body, posts.created_at, posts.updated_at FROM authors JOIN posts ON(authors.author_id=posts.author_id) ORDER BY posts.updated_at DESC;")
 
 	// ooh, an error
 	if err != nil {
@@ -28,20 +28,23 @@ func GetAllPosts() ([]types.Post, error) {
 	// iterate through all the rows
 	for rows.Next() {
 		var (
-			postId    string
-			title     string
-			body      string
-			createdAt time.Time
-			updatedAt time.Time
+			authorName      string
+			authorId        string
+			authorCreatedAt time.Time
+			postId          string
+			postTitle       string
+			postBody        string
+			postCreatedAt   time.Time
+			postUpdatedAt   time.Time
 		)
 
-		err = rows.Scan(&postId, &title, &body, &createdAt, &updatedAt)
+		err := rows.Scan(&authorName, &authorId, &authorCreatedAt, &postId, &postTitle, &postBody, &postCreatedAt, &postUpdatedAt)
 
 		if err != nil {
 			return nil, err
 		}
 
-		result = append(result, types.Post{Id: postId, Title: title, Body: body, CreatedAt: createdAt, UpdatedAt: updatedAt})
+		result = append(result, types.Post{Id: postId, Title: postTitle, Body: postBody, CreatedAt: postCreatedAt, UpdatedAt: postUpdatedAt, AuthorInfo: types.Author{Username: authorName, AuthorId: authorId, CreatedAt: authorCreatedAt}})
 	}
 
 	// get any error encountered during iteration
