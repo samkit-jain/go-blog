@@ -65,12 +65,6 @@ func (h *AuthorHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// author's ID
 	var authorId string
 
-	// Only GET method allowed
-	if req.Method != "GET" {
-		helpers.MethodNotAllowedResponse(res)
-		return
-	}
-
 	// get authorId from path
 	authorId, req.URL.Path = helpers.ShiftPath(req.URL.Path)
 
@@ -125,21 +119,39 @@ type AuthorIdNotPresentHandler struct {
 
 // AuthorIdNotPresentHandler's ServeHTTP returns information of all authors (excluding posts)
 //
-// GET	<base>/api/authors/
+// GET	<base>/api/authors/		Get all authors
+//
+// POST	<base>/api/authors/		Create an author
 func (h *AuthorIdNotPresentHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	// set response header's content-type
 	res.Header().Set("Content-Type", "application/json")
 
-	if content, err := models.GetAllAuthors(); err != nil {
-		if err == sql.ErrNoRows {
+	switch req.Method {
+	case "GET":
+		if content, err := models.GetAllAuthors(); err != nil {
+			if err == sql.ErrNoRows {
+				res.WriteHeader(http.StatusOK)
+				json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+			} else {
+				helpers.InternalServerErrorResponse(res, err.Error())
+			}
+		} else {
 			res.WriteHeader(http.StatusOK)
 			json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
-		} else {
-			helpers.InternalServerErrorResponse(res, err.Error())
 		}
-	} else {
-		res.WriteHeader(http.StatusOK)
-		json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: content})
+	case "POST":
+		// read passed form parameters
+		username := req.FormValue("username")
+		password := req.FormValue("password")
+
+		if authorId, err := models.CreateAuthor(username, password); err != nil {
+			helpers.InternalServerErrorResponse(res, err.Error())
+		} else {
+			res.WriteHeader(http.StatusOK)
+			json.NewEncoder(res).Encode(types.ValidResponse{Status: "success", Content: authorId})
+		}
+	default:
+		helpers.MethodNotAllowedResponse(res)
 	}
 
 	return
